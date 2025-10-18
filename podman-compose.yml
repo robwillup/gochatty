@@ -1,0 +1,27 @@
+version: "3.7"
+services:
+  db:
+    image: postgres:15-alpine
+    restart: always
+    environment:
+      POSTGRES_USER: gochattyuser
+      POSTGRES_PASSWORD: gochattypass
+      POSTGRES_DB: gochattydb
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./scripts/init_db.sql:/docker-entrypoint-initdb.d/init_db.sql:ro
+
+  app:
+    build: .
+    restart: always
+    environment:
+      DATABASE_URL: postgres://gochattyuser:gochattypass@db:5432/gochattydb?sslmode=disable
+    ports:
+      - "8080:8080"
+    depends_on:
+      - db
+
+volumes:
+  pgdata:
