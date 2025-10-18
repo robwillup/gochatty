@@ -19,3 +19,16 @@ Content-Type: application/json
 }
 
 > {% client.global.set("token", response.body.token) %}
+
+### Post Chat Message
+POST {{baseUrl}}/messages
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "content": "Hi, I'm a new student. How do I check my grades?"
+}
+
+### Get Last 50 Messages
+GET {{baseUrl}}/messages
+Authorization: Bearer {{token}}
