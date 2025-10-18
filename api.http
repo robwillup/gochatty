@@ -1,0 +1,21 @@
+@baseUrl = http://localhost:8080
+
+### Register User
+POST {{baseUrl}}/register
+Content-Type: application/json
+
+{
+  "username": "testuser",
+  "password": "secret"
+}
+
+### Login User
+POST {{baseUrl}}/login
+Content-Type: application/json
+
+{
+  "username": "testuser",
+  "password": "secret"
+}
+
+> {% client.global.set("token", response.body.token) %}
