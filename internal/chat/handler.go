@@ -1,9 +1,14 @@
 package chat
 
 import (
+	"encoding/json"
 	"gochatty/internal/db"
 	"gochatty/internal/models"
+	"gochatty/internal/mq"
+	"gochatty/internal/websocket"
+	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -12,6 +17,19 @@ import (
 type PostMessageRequest struct {
 	Content string `json:"content" binding:"required"`
 }
+
+type StockCommand struct {
+	UserID    int    `json:"user_id"`
+	StockCode string `json:"stock_code"`
+}
+
+type BroadcastMessage struct {
+	Content   string    `json:"content"`
+	User      string    `json:"user"`
+	Timestamp time.Time `json:"timestamp"`
+}
+
+var rabbitCmd, rabbitMsgs *mq.RabbitMQ
 
 func getUserID(username string) (int, error) {
 	var id int
@@ -38,15 +56,43 @@ func PostMessage(c *gin.Context) {
 		return
 	}
 
-	_, err = db.DB.Exec(`
-		INSERT INTO messages (user_id, content, created_at, is_bot)
-		VALUES ($1, $2, $3, false)
-	`, userID, req.Content, time.Now())
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save message"})
+	if strings.HasPrefix(req.Content, "/stock=") {
+		stockCode := strings.TrimPrefix(req.Content, "/stock=")
+
+		cmd := StockCommand{
+			UserID:    userID,
+			StockCode: stockCode,
+		}
+
+		body, err := json.Marshal(cmd)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to marshal cmd"})
+			return
+		}
+
+		err = rabbitCmd.Publish(body)
+		if err != nil {
+			log.Printf("Failed to publish stock command: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to enqueue stock cmd"})
+			return
+		}
+
+		c.JSON(http.StatusAccepted, gin.H{"message": "Stock command received and processing"})
 		return
 	}
 
+	msg := models.Message{
+		UserID:    userID,
+		Content:   req.Content,
+		CreatedAt: time.Now(),
+	}
+
+	err = SaveMessage(msg)
+	if err != nil {
+		log.Printf("Failed to save message: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save message"})
+	}
+	
 	c.JSON(http.StatusCreated, gin.H{"message": "Message saved."})
 }
 
@@ -68,4 +114,34 @@ func GetMessages(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, msgs)
+}
+
+func InitRabbitMQClient(cmd *mq.RabbitMQ, msgs *mq.RabbitMQ) {
+	rabbitCmd = cmd
+	rabbitMsgs = msgs
+}
+
+func SaveMessage(message models.Message) error {
+	_, err := db.DB.Exec(`
+		INSERT INTO messages (user_id, content, created_at, is_bot)
+		VALUES ($1, $2, $3, false)
+	`, message.UserID, message.Content, message.CreatedAt)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func BroadcastMessageToClients(content, user string, timestamp time.Time) {
+	msg := BroadcastMessage{
+		Content:   content,
+		User:      user,
+		Timestamp: timestamp,
+	}
+	msgBytes, err := json.Marshal(msg)
+	if err != nil {
+		log.Printf("Failed to marshal broadcast message: %v", err)
+	}
+
+	websocket.Broadcast <- msgBytes
 }

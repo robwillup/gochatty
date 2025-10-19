@@ -12,3 +12,10 @@ CREATE TABLE messages (
     created_at TIMESTAMPTZ DEFAULT now(),
     is_bot BOOLEAN DEFAULT FALSE
 );
+
+-- First user is the bot
+INSERT INTO users (username, password_hash, created_at) VALUES (
+   'bot',
+   '',
+   now()
+);

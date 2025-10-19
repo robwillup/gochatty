@@ -16,7 +16,7 @@ type Client struct {
 
 var (
 	clients   = make(map[*Client]bool)
-	broadcast = make(chan []byte)
+	Broadcast = make(chan []byte)
 	mutex     = &sync.Mutex{}
 	upgrader  = websocket.Upgrader{
 		CheckOrigin: func(r *http.Request) bool { return true },
@@ -54,13 +54,13 @@ func HandleConnections(c *gin.Context) {
 			mutex.Unlock()
 			break
 		}
-		broadcast <- msg
+		Broadcast <- msg
 	}
 }
 
 func HandleMessages() {
 	for {
-		msg := <-broadcast
+		msg := <-Broadcast
 		mutex.Lock()
 		for client := range clients {
 			select {

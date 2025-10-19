@@ -13,15 +13,26 @@ services:
       - pgdata:/var/lib/postgresql/data
       - ./scripts/init_db.sql:/docker-entrypoint-initdb.d/init_db.sql:ro
 
-  app:
-    build: .
+  rabbitmq:
+    image: rabbitmq:3.11-management
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    restart: always
+
+  server:
+    build:
+      context: .
+      dockerfile: Dockerfile.server
     restart: always
     environment:
       DATABASE_URL: postgres://gochattyuser:gochattypass@db:5432/gochattydb?sslmode=disable
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
     ports:
       - "8080:8080"
     depends_on:
       - db
+      - rabbitmq
 
 volumes:
   pgdata:

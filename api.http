@@ -32,3 +32,12 @@ Content-Type: application/json
 ### Get Last 50 Messages
 GET {{baseUrl}}/messages
 Authorization: Bearer {{token}}
+
+### Post Stock Quote Command Message
+POST {{baseUrl}}/messages
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "content": "/stock=AAPL.US"
+}
