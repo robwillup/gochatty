@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Simple Chat Frontend</title>
+    <style>
+        #messages {
+            border: 1px solid black;
+            height: 300px;
+            overflow-y: auto;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+<h2>Register</h2>
+<input id="regUsername" placeholder="Username" />
+<input id="regPassword" type="password" placeholder="Password" />
+<button id="registerBtn">Register</button>
+<p id="registerStatus"></p>
+
+<h2>Login</h2>
+<input id="loginUsername" placeholder="Username" />
+<input id="loginPassword" type="password" placeholder="Password" />
+<button id="loginBtn">Login</button>
+<p id="loginStatus"></p>
+
+<div id="chat" style="display:none;">
+    <h2>Chat</h2>
+    <div id="messages"></div>
+    <input id="messageInput" placeholder="Type a message" />
+    <button id="sendBtn">Send</button>
+    <button id="logoutBtn">Logout</button>
+</div>
+
+<script>
+    let token = null;
+    let ws = null;
+
+    document.getElementById('registerBtn').onclick = async () => {
+        const username = document.getElementById('regUsername').value.trim();
+        const password = document.getElementById('regPassword').value.trim();
+
+        if (!username || !password) {
+            document.getElementById('registerStatus').innerText = 'Fill in username and password';
+            return;
+        }
+
+        const res = await fetch('http://localhost:8080/register', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({username, password})
+        });
+
+        if (res.ok) {
+            document.getElementById('registerStatus').innerText = 'Registered successfully. Please login.';
+        } else {
+            const data = await res.json();
+            document.getElementById('registerStatus').innerText = 'Registration failed: ' + (data.error || 'Unknown error');
+        }
+    };
+
+    document.getElementById('loginBtn').onclick = async () => {
+        const username = document.getElementById('loginUsername').value.trim();
+        const password = document.getElementById('loginPassword').value.trim();
+
+        if (!username || !password) {
+            document.getElementById('loginStatus').innerText = 'Fill in username and password';
+            return;
+        }
+
+        const res = await fetch('http://localhost:8080/login', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({username, password})
+        });
+
+        if (res.ok) {
+            const data = await res.json();
+            token = data.token;
+            document.getElementById('loginStatus').innerText = '';
+            document.getElementById('chat').style.display = 'block';
+            await loadMessages();
+            setupWebSocket();
+        } else {
+            document.getElementById('loginStatus').innerText = 'Login failed';
+        }
+    };
+
+    async function loadMessages() {
+        const res = await fetch('http://localhost:8080/messages', {
+            headers: {
+                'Authorization': 'Bearer ' + token
+            }
+        });
+        if (!res.ok) {
+            console.error('Failed to load messages');
+            return;
+        }
+        const messages = await res.json();
+        console.log(messages);
+        const container = document.getElementById('messages');
+        container.innerHTML = '';
+
+        messages.forEach(msgObj => {
+            const msgDiv = document.createElement('div');
+            msgDiv.style.marginBottom = "15px";
+
+            const sender = document.createElement('div');
+            sender.textContent = msgObj.UserID || `User ${msgObj.user_id}`;
+            sender.style.fontWeight = 'bold';
+
+            const content = document.createElement('div');
+            content.textContent = msgObj.Content;
+
+            const timestamp = document.createElement('div');
+            const dt = new Date(msgObj.CreatedAt || msgObj.timestamp);
+            timestamp.textContent = dt.toLocaleDateString() + ' ' + dt.toLocaleTimeString();
+            timestamp.style.fontSize = 'small';
+            timestamp.style.color = 'gray';
+
+            msgDiv.appendChild(sender);
+            msgDiv.appendChild(content);
+            msgDiv.appendChild(timestamp);
+
+            container.appendChild(msgDiv);
+        });
+
+        container.scrollTop = container.scrollHeight;
+    }
+
+    function setupWebSocket() {
+        ws = new WebSocket(`ws://localhost:8080/ws?token=${token}`);
+
+        ws.onmessage = (event) => {
+            const msgObj = JSON.parse(event.data);
+
+            const msgDiv = document.createElement('div');
+            msgDiv.style.marginBottom = "15px";
+
+            const sender = document.createElement('div');
+            sender.textContent = msgObj.user;
+            sender.style.fontWeight = 'bold';
+
+            const content = document.createElement('div');
+            content.textContent = msgObj.content;
+
+            const timestamp = document.createElement('div');
+            const dt = new Date(msgObj.timestamp);
+            timestamp.textContent = dt.toLocaleDateString();
+            timestamp.style.fontSize = 'small';
+            timestamp.style.color = 'gray';
+
+            msgDiv.appendChild(sender);
+            msgDiv.appendChild(content);
+            msgDiv.appendChild(timestamp);
+
+            const messagesContainer = document.getElementById('messages');
+            messagesContainer.appendChild(msgDiv);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        };
+
+        ws.onclose = () => {
+            alert('WebSocket closed.');
+            logout();
+        };
+    }
+
+    document.getElementById('sendBtn').onclick = async () => {
+        const content = document.getElementById('messageInput').value.trim();
+        if (!content) return;
+
+        await fetch('http://localhost:8080/messages', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+            body: JSON.stringify({content})
+        });
+
+        const msgDiv = document.createElement('div');
+        msgDiv.textContent = 'You: ' + content;
+        document.getElementById('messages').appendChild(msgDiv);
+        document.getElementById('messages').scrollTop = document.getElementById('messages').scrollHeight;
+        document.getElementById('messageInput').value = '';
+    };
+
+    document.getElementById('logoutBtn').onclick = () => {
+        logout();
+    };
+
+    function logout() {
+        token = null;
+        if (ws) ws.close();
+        document.getElementById('chat').style.display = 'none';
+        document.getElementById('loginStatus').innerText = '';
+        document.getElementById('messages').innerHTML = '';
+    }
+</script>
+</body>
+</html>
