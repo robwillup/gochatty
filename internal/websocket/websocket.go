@@ -1,22 +1,32 @@
 package websocket
 
 import (
+	"encoding/json"
 	"log"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 )
 
 type Client struct {
-	Conn *websocket.Conn
-	Send chan []byte
+	Conn   *websocket.Conn
+	Send   chan BroadcastMessage
+	UserID int
+}
+
+type BroadcastMessage struct {
+	Content   string    `json:"content"`
+	User      string    `json:"user"`
+	UserID    int       `json:"user_id"`
+	Timestamp time.Time `json:"timestamp"`
 }
 
 var (
 	clients   = make(map[*Client]bool)
-	Broadcast = make(chan []byte)
+	Broadcast = make(chan BroadcastMessage)
 	mutex     = &sync.Mutex{}
 	upgrader  = websocket.Upgrader{
 		CheckOrigin: func(r *http.Request) bool { return true },
@@ -31,14 +41,18 @@ func HandleConnections(c *gin.Context) {
 	}
 	defer ws.Close()
 
-	client := &Client{Conn: ws, Send: make(chan []byte)}
+	client := &Client{Conn: ws, Send: make(chan BroadcastMessage), UserID: -1}
 	mutex.Lock()
 	clients[client] = true
 	mutex.Unlock()
 
 	go func() {
 		for msg := range client.Send {
-			err := client.Conn.WriteMessage(websocket.TextMessage, msg)
+			msgBytes, err := json.Marshal(msg)
+			if err != nil {
+				log.Printf("Failed to marshal broadcast message: %v", err)
+			}
+			err = client.Conn.WriteMessage(websocket.TextMessage, msgBytes)
 			if err != nil {
 				log.Printf("Write error: %v", err)
 				break
@@ -54,7 +68,12 @@ func HandleConnections(c *gin.Context) {
 			mutex.Unlock()
 			break
 		}
-		Broadcast <- msg
+		var broadcastMessage BroadcastMessage
+		err = json.Unmarshal(msg, &broadcastMessage)
+		if err != nil {
+			log.Printf("Failed to unmarshal broadcast message: %v", err)
+		}
+		Broadcast <- broadcastMessage
 	}
 }
 
@@ -63,6 +82,9 @@ func HandleMessages() {
 		msg := <-Broadcast
 		mutex.Lock()
 		for client := range clients {
+			if client.UserID == msg.UserID {
+				continue
+			}
 			select {
 			case client.Send <- msg:
 			default:

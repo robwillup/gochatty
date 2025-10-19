@@ -23,12 +23,6 @@ type StockCommand struct {
 	StockCode string `json:"stock_code"`
 }
 
-type BroadcastMessage struct {
-	Content   string    `json:"content"`
-	User      string    `json:"user"`
-	Timestamp time.Time `json:"timestamp"`
-}
-
 var rabbitCmd, rabbitMsgs *mq.RabbitMQ
 
 func getUserID(username string) (int, error) {
@@ -92,7 +86,9 @@ func PostMessage(c *gin.Context) {
 		log.Printf("Failed to save message: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save message"})
 	}
-	
+
+	BroadcastMessageToClients(msg.Content, username.(string), userID, msg.CreatedAt)
+
 	c.JSON(http.StatusCreated, gin.H{"message": "Message saved."})
 }
 
@@ -132,16 +128,13 @@ func SaveMessage(message models.Message) error {
 	return nil
 }
 
-func BroadcastMessageToClients(content, user string, timestamp time.Time) {
-	msg := BroadcastMessage{
+func BroadcastMessageToClients(content, user string, userID int, timestamp time.Time) {
+	msg := websocket.BroadcastMessage{
 		Content:   content,
 		User:      user,
+		UserID:    userID,
 		Timestamp: timestamp,
 	}
-	msgBytes, err := json.Marshal(msg)
-	if err != nil {
-		log.Printf("Failed to marshal broadcast message: %v", err)
-	}
 
-	websocket.Broadcast <- msgBytes
+	websocket.Broadcast <- msg
 }

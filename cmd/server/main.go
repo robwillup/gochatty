@@ -59,7 +59,7 @@ func fetchStockQuote(stockCode string) (string, error) {
 }
 
 func runBot(cmdClient *mq.RabbitMQ, msgClient *mq.RabbitMQ) {
-	msgs, err := cmdClient.Consume(false) // manual ack
+	msgs, err := cmdClient.Consume(false)
 	if err != nil {
 		log.Fatalf("Bot: Failed to consume command queue: %v", err)
 	}
@@ -167,7 +167,7 @@ func main() {
 			log.Println("Saving bot message")
 			chat.SaveMessage(message)
 
-			chat.BroadcastMessageToClients(msg.Content, "bot", message.CreatedAt)
+			chat.BroadcastMessageToClients(msg.Content, "bot", BOT_ID, message.CreatedAt)
 			d.Ack(false)
 		}
 	}()
