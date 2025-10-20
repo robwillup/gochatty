@@ -6,7 +6,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
-var jwtKey = []byte("secret_key") // TODO: Use a secure value.
+var jwtKey = []byte("secret_key") // TODO: Use real key from vault/env vars.
 
 func GenerateJWT(username string) (string, error) {
 	claims := &jwt.RegisteredClaims{

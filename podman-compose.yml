@@ -23,7 +23,7 @@ services:
   server:
     build:
       context: .
-      dockerfile: Dockerfile.server
+      dockerfile: Containerfile
     restart: always
     environment:
       DATABASE_URL: postgres://gochattyuser:gochattypass@db:5432/gochattydb?sslmode=disable

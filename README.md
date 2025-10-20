@@ -3,6 +3,10 @@ A Go chat app
 
 ## Running the App
 
+You can run the app directly on your machine if you have Postgres and RabbitMQ.
+
+Otherwise, you can run the containerized version with:
+
 Clone this repo:
 
 ```shell
@@ -10,10 +14,9 @@ git clone git@github.com:robwillup/gochatty.git
 cd gochatty
 ```
 
-Build and run the `podman-compose` file:
+Run the following commands:
 
 ```shell
-podman-compose -f podman-compose.yml build
-
-podman-compose -f podman-compose.yml up -d
+chmod +x scripts/run.sh
+./script/run.sh
 ```
